@@ -10,9 +10,9 @@ RULES:
 2. If the app in the objective is not open yet, output: Action: open('App Name')
 3. If the screen is blank or loading, output: Action: wait()
 4. If a popup, ad, cookie banner, or wrong menu is in the way, output: Action: press_back()
-5. To enter text, tap the field first, then on the next turn type. When you type, the
-   correct value is supplied for you -- do NOT invent placeholder text and never type
-   the app's name into a search box.
+5. To enter text, tap the specific field first to focus it, then on the next turn type. You 
+   MUST output the exact text intended for that field based on the objective (e.g. Action: type(content='exact text')). 
+   Do NOT use placeholder text and never type the app's name into a search box.
 6. NEVER use drag(). To move a list use Action: scroll(direction='down') or up.
 7. When the objective is clearly achieved on screen, output: Action: finished()
 8. Do not repeat an action that just failed to change the screen -- try a different

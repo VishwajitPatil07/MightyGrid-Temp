@@ -105,16 +105,37 @@ def _set_focused_text(serial, value):
         return False
 
 
-def _clear_focused_field(serial):
-    """Erase whatever is already in the focused text field before we type a value,
-    so stray text (e.g. a wrong earlier tap) doesn't get prepended. Best-effort."""
-    try:
-        get_device_for_serial(serial)(focused=True).clear_text()
-    except Exception:
+def _clear_focused_field(serial, target=None):
+    """Erase whatever is already in the field before we type a value.
+    Uses direct node targeting first to bypass sluggish accessibility focus states."""
+    d = get_device_for_serial(serial)
+    
+    # 1. Bypass `focused=True` delay by using the exact resource ID if available
+    if target and target.get("rid"):
         try:
-            get_device_for_serial(serial).clear_text()
+            d(resourceId=target["rid"]).clear_text()
+            return
         except Exception:
             pass
+            
+    # 2. Your original best-effort fallback
+    try:
+        d(focused=True).clear_text()
+        return
+    except Exception:
+        try:
+            d.clear_text()
+            return
+        except Exception:
+            pass
+            
+    # 3. The bulletproof moat fallback: Select All (Ctrl+A) + Backspace
+    # 113 = KEYCODE_CTRL_LEFT, 29 = KEYCODE_A, 67 = KEYCODE_DEL
+    try:
+        d.shell("input keycombination 113 29") 
+        d.shell("input keyevent 67")
+    except Exception:
+        pass
 
 
 def _dismiss_keyboard(serial):
@@ -279,7 +300,9 @@ def _type_queued_value(serial, elements, values, vi, before_xml):
                     target_w_px=target.get("w"), target_h_px=target.get("h"))
         used = "field '%s'" % ((target.get("label") or "input")[:24])
         time.sleep(0.6)
-    _clear_focused_field(serial)
+        
+    # FIX: Pass the target element down to bypass focus delays
+    _clear_focused_field(serial, target) 
     execute_human_type(serial, text)
     after = _dump(serial)
     # Password fields render dots, so element_present can't see them -- accept a screen
@@ -292,7 +315,6 @@ def _type_queued_value(serial, elements, values, vi, before_xml):
         return vi + 1, True
     print("[%s]   typed %r but nothing changed; not advancing" % (serial, text))
     return vi, False
-
 
 # ---------------------------------------------------------------------------
 # Reactive intent-driven loop: understand the intent once, then decide each next
