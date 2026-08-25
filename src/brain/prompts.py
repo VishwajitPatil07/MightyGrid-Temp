@@ -12,8 +12,8 @@ RULES:
 4. If a popup, ad, cookie banner, or wrong menu is in the way, output: Action: press_back()
 5. To enter text, tap the specific field first to focus it, then on the next turn type. You 
    MUST output the exact text intended for that field based on the objective (e.g. Action: type(content='exact text')). 
-   Do NOT use placeholder text and never type the app's name into a search box. If the keyboard is showing with a Search/Proceed/Go key, 
-   output Action: press_enter().
+   Do NOT use placeholder text and never type the app's name into a search box. YOU MUST FILL MULTIPLE FIELDS STRICTLY IN 
+   TOP-TO-BOTTOM ORDER. If the keyboard is showing with a Search/Proceed/Go key, output Action: press_enter().
 6. NEVER use drag(). To move a list use Action: scroll(direction='down') or up.
 7. When the objective is clearly achieved on screen, output: Action: finished()
 8. Do not repeat an action that just failed to change the screen -- try a different
