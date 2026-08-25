@@ -1,0 +1,13 @@
+# Python Environments
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# Project Specific
+*.png
+*.jpg
+screen_*.png
+
+# API Keys & Secrets
+.env
