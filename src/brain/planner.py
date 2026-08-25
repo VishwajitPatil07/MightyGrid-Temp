@@ -41,9 +41,20 @@ _APP_RE = re.compile(
     r'\bopen\s+(?:the\s+)?([A-Za-z0-9][A-Za-z0-9._]*(?:\s[A-Za-z0-9][A-Za-z0-9._]*)?)'
     r'(?=\s+app\b|\s*,|\s+and\b|\s+then\b|\s+to\b|$)', re.I)
 _VALUE_RE = re.compile(
-    r'\b(?:type|enter|input|write)\s+["\']?(\S{2,})', re.I)
+    r'\b(?:type|enter|input|write)\s+["\']?([^"\',;\n]+?)["\']?\s*(?:into|in|to|on|\bfield\b|\bbox\b|\s*,|\s+then|\s+and|$)', re.I)
 _SEARCH_VALUE_RE = re.compile(
     r'\bsearch\s+for\s+["\']?(.+?)(?:["\']?(?:\s*(?:then|after that|afterwards?)\b|[;\n]|$))', re.I)
+
+# Explicit Pickup and Destination patterns for rides & cabs
+_PICKUP_RE = re.compile(
+    r'(?:(?:set|enter|choose|put|select|type)\s+["\']?(?P<p1>[^,.;\n]+?)["\']?\s+as\s+(?:the\s+)?(?:pickup|pick-up|pick\s+up|source|origin)(?:\s+location)?'
+    r'|(?:set|enter|choose|put|select|type)?\s*(?:the\s+)?(?:pickup|pick-up|pick\s+up|source|origin)(?:\s+location)?\s*(?:as|to|is|=|\s*:)\s*["\']?(?P<p2>[^,.;\n]+?)["\']?'
+    r')(?=\s*(?:and|then|,|\.|\;|$|\s+set|\s+destination|\s+drop))', re.I)
+
+_DEST_RE = re.compile(
+    r'(?:(?:set|enter|choose|put|select|type)\s+["\']?(?P<d1>[^,.;\n]+?)["\']?\s+as\s+(?:the\s+)?(?:destination|drop|drop-off|drop\s+off)(?:\s+location)?'
+    r'|(?:set|enter|choose|put|select|type)?\s*(?:the\s+)?(?:destination|drop|drop-off|drop\s+off)(?:\s+location)?\s*(?:as|to|is|=|\s*:)\s*["\']?(?P<d2>[^,.;\n]+?)["\']?'
+    r')(?=\s*(?:and|then|,|\.|\;|$|\s+explore|\s+select|\s+and\s+select|\s+choose))', re.I)
 # A "flight/train/bus/ride from X to Y" request: capture the ORIGIN and DESTINATION as two
 # separate values (not the whole sentence). The date is deliberately NOT captured as a value
 # -- it is chosen on the app's calendar, not typed into the city field. Origin stops at "to";
@@ -93,26 +104,37 @@ def _heuristic_intent(query):
     if m:
         app = re.sub(r'\s+app$', '', m.group(1).strip(), flags=re.I).strip()
     values = list(_EMAIL_RE.findall(q))
-    for m in _VALUE_RE.finditer(q):
-        v = _clean_value(m.group(1))
-        if v and v.lower() not in _VALUE_STOP and v not in values:
-            values.append(v)
-    # A "from X to Y" route -> two values (origin, destination). Take this BEFORE the greedy
-    # "search for ..." rule, which would otherwise swallow the whole sentence as one value
-    # (the bug that filled the 'From' field with "a flight from Pune to Nagpur on 21 Aug 2026").
+
+    # 1. Ride pickup/destination directives (always in Pickup -> Destination order)
+    pickup_m = _PICKUP_RE.search(q)
+    dest_m = _DEST_RE.search(q)
+    if pickup_m or dest_m:
+        p_val = _clean_value(pickup_m.group("p1") or pickup_m.group("p2")) if pickup_m else ""
+        d_val = _clean_value(dest_m.group("d1") or dest_m.group("d2")) if dest_m else ""
+        if p_val and p_val.lower() not in _VALUE_STOP and p_val not in values:
+            values.append(p_val)
+        if d_val and d_val.lower() not in _VALUE_STOP and d_val not in values:
+            values.append(d_val)
+
+    # 2. General "from X to Y" route (flights, rides, buses)
     route = _FLIGHT_ROUTE_RE.search(q)
-    if route:
+    if route and not (pickup_m and dest_m):
         for part in (route.group("origin"), route.group("dest")):
             v = _clean_value(part)
-            # keep the CITY only: cut anything after a comma and drop a leading article
             v = re.sub(r"^(?:the|a|an)\s+", "", v, flags=re.I).split(",")[0].strip()
             if v and v.lower() not in _VALUE_STOP and v not in values:
                 values.append(v)
-    else:
+    elif not (pickup_m or dest_m):
         for m in _SEARCH_VALUE_RE.finditer(q):
             v = _clean_value(m.group(1))
             if v and v.lower() not in _VALUE_STOP and v not in values:
                 values.append(v)
+
+    # 3. Explicit type/enter commands
+    for m in _VALUE_RE.finditer(q):
+        v = _clean_value(m.group(1))
+        if v and v.lower() not in _VALUE_STOP and v not in values:
+            values.append(v)
     for m in _CRED_RE.finditer(q):           # labeled credentials, in order
         v = _clean_value(m.group(1))
         if _looks_like_value(v) and v not in values:
