@@ -962,7 +962,8 @@ def _kbd_full(serial: str):
         elif "delete" in low or "backspace" in low:
             ctrl.setdefault("BKSP", (e["cx"], e["cy"]))
         elif low in ("search", "go", "enter", "return", "send", "next", "done", "submit",
-                     "search key", "enter key", "go key", "done key", "return key"):
+                     "proceed", "continue", "navigate", "action key", "search key", 
+                     "enter key", "go key", "done key", "return key", "proceed key"):
             ctrl.setdefault("ENTER", (e["cx"], e["cy"]))   # the bottom-right action key
         elif low == "space" or "spacebar" in low or low.endswith(" space"):
             chars.setdefault(" ", (e["cx"], e["cy"]))

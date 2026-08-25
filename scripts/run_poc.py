@@ -198,15 +198,10 @@ def _explore_once(serial):
 
 
 def _finish_typing(serial, do_search, value, pick_suggestion=False):
-    """After typing, do what a person does next: for a SEARCH, run it (tap a matching
-    suggestion, else press the keyboard Search key); otherwise drop the keyboard so the
-    button it was covering (Continue / Next / Log in) is visible for the next decision.
-
-    pick_suggestion=True is the INTERMEDIATE-field case (e.g. the 'From' city of a flight
-    search, with more values still to enter): apps like this only register the value when
-    its dropdown row is TAPPED -- typing the text alone leaves the field unset. So tap a
-    matching row if one is showing, and otherwise fall through to dismissing the keyboard
-    exactly as before. Never presses Enter, so a half-filled form is never submitted."""
+    """After typing:
+    1. If it's an explicit search or the final value entered, submit it (pick suggestion or press keyboard Enter/Search).
+    2. If picking suggestions only (intermediate field), tap the suggestion if present.
+    3. If neither applies and no action key was pressed, drop the keyboard to reveal UI buttons underneath."""
     if do_search and value:
         how = submit_search(serial, value)
         print("[%s]   search submitted -> %s" % (serial, how))
@@ -215,6 +210,12 @@ def _finish_typing(serial, do_search, value, pick_suggestion=False):
         how = submit_search(serial, value, suggestion_only=True)
         if how:
             print("[%s]   picked the suggestion -> %s" % (serial, how))
+            return
+    # If we have typed the value but no dropdown was clicked, press the keyboard's Search/Proceed key
+    if value:
+        how = submit_search(serial, value, suggestion_only=False)
+        if how and "could not submit" not in how:
+            print("[%s]   proceed/search submitted -> %s" % (serial, how))
             return
     if _dismiss_keyboard(serial):
         print("[%s]   keyboard dismissed (revealing buttons underneath)" % serial)
@@ -664,7 +665,7 @@ def run_device_workflow(serial, query, seed=None):
             # All values in -> run the search. Still values pending in a search flow ->
             # pick this field's dropdown row (city pickers need the row tapped).
             _finish_typing(serial, is_search and vi >= len(values), typed_text,
-                           pick_suggestion=is_search and vi < len(values))
+                           pick_suggestion=True)
             if typed_text:
                 acted = ("searched '%s'" % typed_text[:30]) if is_search else "entered a value into the form"
         elif act == "open":
@@ -682,8 +683,8 @@ def run_device_workflow(serial, query, seed=None):
             if vi < len(values) and _click_on_input_field(elements, px, py):
                 nf = find_input_fields(elements)
                 nf = nf[min(vi, len(nf) - 1)] if nf else None
-                if nf is not None and not (nf.get("text") or "").strip():
-                    print("[%s]   click landed on an empty input field -> typing the pending value" % serial)
+                if nf is not None:
+                    print("[%s]   click landed on an input field -> typing the pending value" % serial)
                     typed_text = values[vi]
                     vi, advanced = _type_queued_value(serial, elements, values, vi, before_xml)
                     no_progress = 0 if advanced else no_progress + 1
@@ -693,7 +694,7 @@ def run_device_workflow(serial, query, seed=None):
                     # All values in -> run the search. Still values pending in a search
                     # flow -> pick this field's dropdown row (city pickers need the tap).
                     _finish_typing(serial, is_search and vi >= len(values), typed_text,
-                                   pick_suggestion=is_search and vi < len(values))
+                                   pick_suggestion=True)
                     _remember(history, "entered a value into a field")
                     continue
             # Anti-repeat: UI-TARS can FIXATE -- clicking essentially the same spot
